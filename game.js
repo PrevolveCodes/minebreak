@@ -184,7 +184,28 @@ async function loadResourcePackZip(file) {
     }
     return undefined;
   };
+  const entityPaths = paths.filter(path => /(?:^|\/)assets\/minecraft\/textures\/entity\//i.test(path));
+  const findEntityTexture = (...names) => {
+    for (const name of names) {
+      const exact = entityPaths.find(path => path.toLowerCase().endsWith("/" + name.toLowerCase()));
+      if (exact) return exact;
+    }
+    return undefined;
+  };
   const textureLoader = new THREE.TextureLoader();
+  async function decodeTexture(path) {
+    const blob = await zip.file(path).async("blob");
+    const url = URL.createObjectURL(blob);
+    try {
+      const texture = await new Promise((resolve, reject) => textureLoader.load(url, resolve, undefined, reject));
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+      return texture;
+    } finally { URL.revokeObjectURL(url); }
+  }
   async function loadOne(names, material, transparent = false, tint = 0xffffff) {
     const path = findTexture(...names);
     if (!path) return { ok: false, reason: "not found" };
@@ -229,11 +250,29 @@ async function loadResourcePackZip(file) {
   }));
   const loaded = results.filter(result => result.ok).length;
   const missing = results.filter(result => !result.ok).map(result => result.name);
+  const mobResults = [];
+  const mobFiles = [
+    ["cow", ["cow/cow.png", "cow.png"]],
+    ["pig", ["pig/pig.png", "pig.png"]],
+    ["zombie", ["zombie.png", "zombie/zombie.png", "zombie/zombie.png"]]
+  ];
+  for (const [kind, names] of mobFiles) {
+    const path = findEntityTexture(...names);
+    if (!path) { mobResults.push(kind + ": missing"); continue; }
+    try {
+      const texture = await decodeTexture(path);
+      applyEntityTexture(kind, texture);
+      mobResults.push(kind + ": loaded");
+    } catch (error) {
+      console.warn("Entity texture failed:", kind, error);
+      mobResults.push(kind + ": failed");
+    }
+  }
   if (loaded === 0) {
     throw new Error("No block textures could be loaded. Check that the ZIP contains PNGs in assets/minecraft/textures/block/.");
   }
-  textureStatus.textContent = "Loaded " + loaded + " of 7 block textures." +
-    (missing.length ? " Kept defaults for: " + missing.join(", ") + "." : " All supported textures loaded.");
+  textureStatus.textContent = "Loaded " + loaded + " of 7 block textures. Entity textures — " + mobResults.join(", ") +
+    (missing.length ? ". Default blocks kept for: " + missing.join(", ") + "." : ".");
 }
 
 loadTexturesButton.addEventListener("click", async () => {
@@ -592,22 +631,89 @@ function updatePlayer(dt) {
   coordsText.textContent = "X " + Math.floor(player.x) + " · Y " + Math.floor(player.y) + " · Z " + Math.floor(player.z);
 }
 
+const entityTextures = new Map();
+const entityMaterials = new Map();
+
+function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeight) {
+  const geometry = new THREE.BoxGeometry(width / 16, height / 16, depth / 16);
+  const uv = geometry.attributes.uv;
+  // Minecraft's classic cuboid atlas: side strip plus top and bottom rectangles.
+  const d = depth, w = width, h = height, u = uvU, v = uvV;
+  const rects = [
+    [u+d+w, v+d, d, h], // right
+    [u, v+d, d, h],     // left
+    [u+d, v, w, d],     // top
+    [u+d+w, v, w, d],   // bottom
+    [u+d, v+d, w, h],   // front
+    [u+d+w+d, v+d, w, h]// back
+  ];
+  for (let face = 0; face < 6; face++) {
+    const [rx, ry, rw, rh] = rects[face];
+    for (let i = 0; i < 4; i++) {
+      const oldU = uv.getX(face * 4 + i);
+      const oldV = uv.getY(face * 4 + i);
+      uv.setXY(face * 4 + i,
+        (rx + oldU * rw) / textureWidth,
+        1 - (ry + (1 - oldV) * rh) / textureHeight);
+    }
+  }
+  uv.needsUpdate = true;
+  return geometry;
+}
 function makeCreature(kind, x, z) {
   const group = new THREE.Group();
-  const bodyMat = new THREE.MeshLambertMaterial({ color: kind === "cow" ? 0x76513a : kind === "pig" ? 0xe99b9b : 0x4c8f47 });
-  const darkMat = new THREE.MeshLambertMaterial({ color: kind === "cow" ? 0x33251d : 0x4b2929 });
-  function cube(w,h,d,mat,px,py,pz) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    mesh.position.set(px,py,pz); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh;
+  const isCow = kind === "cow", isPig = kind === "pig", isZombie = kind === "zombie";
+  const fallback = isCow ? 0x8b6548 : isPig ? 0xe6a0a0 : 0x4d9a45;
+  const material = new THREE.MeshLambertMaterial({ color: fallback });
+  entityMaterials.set(kind, material);
+  const texSize = isZombie ? [64, 64] : [64, 32];
+  const addBox = (w,h,d,px,py,pz,u,v) => {
+    const mesh = new THREE.Mesh(makeEntityBox(w,h,d,u,v,texSize[0],texSize[1]), material);
+    mesh.position.set(px/16,py/16,pz/16);
+    mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh);
+    return mesh;
+  };
+  if (isCow) {
+    // Approximate vanilla Java cow model: long body, raised head, four short legs.
+    addBox(12,18,10,-2,6,0,18,4);
+    addBox(8,8,6,0,14,-8,0,0);
+    for (const [xLeg,zLeg] of [[-4,-3],[4,-3],[-4,3],[4,3]]) addBox(4,12,4,xLeg,0,zLeg,0,16);
+  } else if (isPig) {
+    // Vanilla pig proportions and the characteristic square snout.
+    addBox(10,8,16,0,7,0,28,8);
+    addBox(8,8,8,0,10,-10,0,0);
+    addBox(4,3,1,0,9,-14,16,16);
+    for (const [xLeg,zLeg] of [[-3,-5],[3,-5],[-3,5],[3,5]]) addBox(4,6,4,xLeg,0,zLeg,0,16);
+  } else {
+    // Classic Java zombie proportions with separate head, torso, arms, and legs.
+    addBox(8,12,4,0,12,0,16,16);
+    addBox(8,8,8,0,22,0,0,0);
+    addBox(4,12,4,-6,12,0,40,16);
+    addBox(4,12,4,6,12,0,40,16);
+    addBox(4,12,4,-2,0,0,0,16);
+    addBox(4,12,4,2,0,0,0,16);
   }
-  cube(0.95,0.55,0.48,bodyMat,0,0.68,0);
-  cube(0.36,0.38,0.38,bodyMat,0.48,0.76,0);
-  cube(0.13,0.13,0.08,darkMat,0.62,0.83,0.2);
-  cube(0.13,0.13,0.08,darkMat,0.62,0.83,-0.2);
-  for (const px of [-0.3,0.3]) for (const pz of [-0.15,0.15]) cube(0.14,0.42,0.14,darkMat,px,0.25,pz);
   group.position.set(x, terrainHeight(Math.floor(x),Math.floor(z))+1, z);
   scene.add(group);
-  creatures.push({kind, group, x, z, direction:Math.random()*Math.PI*2, wander:1+Math.random()*4, hp:kind==="zombie"?8:4, speed:kind==="zombie"?1.4:0.55, lastAttack:0});
+  creatures.push({kind, group, x, z, direction:Math.random()*Math.PI*2, wander:1+Math.random()*4, hp:isZombie?8:4, speed:isZombie?1.4:0.55, lastAttack:0});
+  const texture = entityTextures.get(kind);
+  if (texture) applyEntityTexture(kind, texture);
+}
+function applyEntityTexture(kind, texture) {
+  entityTextures.set(kind, texture);
+  let material = entityMaterials.get(kind);
+  if (!material) return;
+  material.map = texture;
+  material.color.setHex(0xffffff);
+  material.transparent = true;
+  material.alphaTest = 0.5;
+  material.side = THREE.DoubleSide;
+  material.needsUpdate = true;
+  for (const creature of creatures) {
+    if (creature.kind === kind) creature.group.traverse(object => {
+      if (object.isMesh) { object.material = material; object.material.needsUpdate = true; }
+    });
+  }
 }
 function spawnCreatures() {
   for (const [x,z] of [[-5,-3],[5,4],[12,-5],[-13,4],[2,-12]]) makeCreature(Math.random() < 0.5 ? "cow" : "pig",x,z);
