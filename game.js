@@ -696,28 +696,29 @@ function makeCreature(kind, x, z) {
     return mesh;
   };
   if (isCow) {
-    // Classic Minecraft cow proportions: compact body, large head, short legs.
-    // The face points toward local -Z.
-    addBox(10,8,12,0,11,0,18,4);
-    addBox(8,8,6,0,15,-9,0,0);
-    // Horns sit on the upper sides of the head.
-    addBox(2,3,2,-5,19,-8,22,0);
-    addBox(2,3,2,5,19,-8,22,0,true);
-    for (const [xLeg,zLeg] of [[-3,-4],[3,-4],[-3,4],[3,4]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
+    // Minecraft-style adult cow: 10x8x12 body, 8x8x6 head, and long 4x12x4 legs.
+    // The face points toward local -Z. The body rests directly on the legs.
+    addBox(10,8,12,0,16,0,18,4);
+    addBox(8,8,6,0,18,-9,0,0);
+    // Horns rise from the top sides of the head.
+    addBox(2,3,2,-5,23.5,-8,22,0);
+    addBox(2,3,2,5,23.5,-8,22,0,true);
+    for (const [xLeg,zLeg] of [[-3,-4],[3,-4],[-3,4],[3,4]]) addBox(4,12,4,xLeg,6,zLeg,0,16);
   } else if (isPig) {
-    // Classic Minecraft pig proportions: broad body, cube-shaped head and short legs.
-    addBox(10,8,14,0,11,0,28,8);
-    addBox(8,8,8,0,15,-10,0,0);
-    addBox(4,3,2,0,14,-15,16,16);
+    // Minecraft-style pig: wide body, large cubic head, small snout, and short legs.
+    addBox(10,8,14,0,10,0,28,8);
+    addBox(8,8,8,0,14,-10,0,0);
+    addBox(4,3,2,0,13,-15,16,16);
     for (const [xLeg,zLeg] of [[-3,-4],[3,-4],[-3,4],[3,4]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
   } else {
-    // Java zombie 64x64 atlas: distinct modern UV regions for each limb.
-    addBox(8,12,4,0,12,0,16,16);             // torso
-    addBox(8,8,8,0,22,0,0,0);                // head
-    addBox(4,12,4,-6,12,0,40,16);            // right arm
-    addBox(4,12,4,6,12,0,32,48,true);       // left arm (separate mirrored region)
-    addBox(4,12,4,-2,6,0,0,16);              // right leg
-    addBox(4,12,4,2,6,0,16,48,true);        // left leg (separate mirrored region)
+    // Standard Minecraft zombie/player proportions: 8x8x8 head, 8x12x4 torso,
+    // 4x12x4 arms, and 4x12x4 legs, aligned edge-to-edge vertically.
+    addBox(8,12,4,0,18,0,16,16);             // torso: y=12..24
+    addBox(8,8,8,0,28,0,0,0);                // head: y=24..32
+    addBox(4,12,4,-6,18,0,40,16);            // right arm
+    addBox(4,12,4,6,18,0,32,48,true);        // left arm (separate mirrored region)
+    addBox(4,12,4,-2,6,0,0,16);              // right leg: y=0..12
+    addBox(4,12,4,2,6,0,16,48,true);        // left leg: y=0..12
   }
   group.position.set(x, terrainHeight(Math.floor(x),Math.floor(z))+1, z);
   scene.add(group);
