@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import JSZip from "jszip";
 
 const gameRoot = document.querySelector("#game");
 const startScreen = document.querySelector("#start-screen");
@@ -7,6 +8,9 @@ const hud = document.querySelector("#hud");
 const crosshair = document.querySelector("#crosshair");
 const statusText = document.querySelector("#status");
 const coordsText = document.querySelector("#coords");
+const textureZipInput = document.querySelector("#texture-zip");
+const loadTexturesButton = document.querySelector("#load-textures-button");
+const textureStatus = document.querySelector("#texture-status");
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8bc8f0);
@@ -138,6 +142,71 @@ const materials = {
   [BLOCKS.WOOD]: { side: woodSideMat, top: woodTopMat, bottom: woodTopMat },
   [BLOCKS.LEAVES]: { all: leavesMat }
 };
+
+
+async function loadResourcePackZip(file) {
+  if (!file) throw new Error("Choose a resource-pack ZIP file first.");
+  if (!file.name.toLowerCase().endsWith(".zip")) throw new Error("Please choose a .zip file.");
+  textureStatus.textContent = "Reading ZIP…";
+  const zip = await JSZip.loadAsync(file);
+  const paths = Object.keys(zip.files).filter(path => !zip.files[path].dir && /\\.(png)$/i.test(path));
+  const findTexture = (...names) => paths.find(path => {
+    const lower = path.toLowerCase();
+    return names.some(name => lower.endsWith("/" + name) || lower === name);
+  });
+  const textureLoader = new THREE.TextureLoader();
+  async function loadOne(names, material, transparent = false) {
+    const path = findTexture(...names);
+    if (!path) return false;
+    const blob = await zip.file(path).async("blob");
+    const url = URL.createObjectURL(blob);
+    try {
+      const texture = await new Promise((resolve, reject) => {
+        textureLoader.load(url, resolve, undefined, reject);
+      });
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false;
+      if (material.map) material.map.dispose();
+      material.map = texture;
+      material.transparent = transparent;
+      material.alphaTest = transparent ? 0.15 : 0;
+      material.needsUpdate = true;
+      return true;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  let loaded = 0;
+  const jobs = [
+    loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat),
+    loadOne(["grass_block_side.png", "grass_side.png"], grassSideMat),
+    loadOne(["dirt.png"], dirtMat),
+    loadOne(["stone.png"], stoneMat),
+    loadOne(["oak_log.png", "oak_wood.png", "log_oak.png"], woodSideMat),
+    loadOne(["oak_log_top.png", "oak_wood_top.png", "log_oak_top.png"], woodTopMat),
+    loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true)
+  ];
+  const results = await Promise.all(jobs);
+  loaded = results.filter(Boolean).length;
+  if (loaded === 0) {
+    throw new Error("No matching block PNGs found. Use a Java resource pack ZIP containing assets/minecraft/textures/block/.");
+  }
+  textureStatus.textContent = "Loaded " + loaded + " texture types. Unmatched textures keep their defaults.";
+}
+
+loadTexturesButton.addEventListener("click", async () => {
+  loadTexturesButton.disabled = true;
+  try {
+    await loadResourcePackZip(textureZipInput.files[0]);
+  } catch (error) {
+    console.error("Minebreak resource pack error:", error);
+    textureStatus.textContent = error?.message || "Could not load that ZIP.";
+  } finally {
+    loadTexturesButton.disabled = false;
+  }
+});
 
 function terrainHeight(x, z) {
   const hills = Math.sin(x * 0.22) * 1.7 + Math.cos(z * 0.19) * 1.5 + Math.sin((x + z) * 0.13) * 1.3;
