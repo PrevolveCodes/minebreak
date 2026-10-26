@@ -9,7 +9,8 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "jszip": "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm"
       }
     }
   </script>
@@ -22,6 +23,10 @@
       <div class="eyebrow">A voxel sandbox prototype</div>
       <h1>MINEBREAK</h1>
       <p>A playable first step. Explore, dig, and build.</p>
+      <label class="zip-label" for="texture-zip">Minecraft resource-pack ZIP</label>
+      <input id="texture-zip" type="file" accept=".zip,application/zip">
+      <button id="load-textures-button" type="button">Load textures from ZIP</button>
+      <p id="texture-status" role="status">Optional: choose a resource-pack ZIP first.</p>
       <button id="play-button">Play world</button>
       <p class="hint">Click Play, then click the game to capture your mouse.</p>
       <p id="status" role="status">Generating world…</p>
