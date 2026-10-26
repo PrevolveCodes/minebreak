@@ -239,13 +239,16 @@ async function loadResourcePackZip(file) {
     }
   }
   const jobs = [
-    ["grass top", () => loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat, false, 0x59a83d)],
+    ["grass top", () => loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat, false, 0x80bd63)],
     ["grass side", () => loadOne(["grass_block_side.png", "grass_side.png"], grassSideMat)],
     ["dirt", () => loadOne(["dirt.png"], dirtMat)],
     ["stone", () => loadOne(["stone.png"], stoneMat)],
     ["oak log side", () => loadOne(["oak_log.png", "oak_wood.png", "log_oak.png"], woodSideMat)],
     ["oak log top", () => loadOne(["oak_log_top.png", "oak_wood_top.png", "log_oak_top.png"], woodTopMat)],
-    ["oak leaves", () => loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true, 0x326b2c)]
+    ["oak leaves", () => loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true, 0x78b85a)],
+    ["oak planks", () => loadOne(["oak_planks.png", "planks_oak.png"], planksMat)],
+    ["coal ore", () => loadOne(["coal_ore.png"], coalOreMat)],
+    ["iron ore", () => loadOne(["iron_ore.png"], ironOreMat)]
   ];
   const results = await Promise.all(jobs.map(async ([name, load]) => {
     try { return { name, ...(await load()) }; }
@@ -257,8 +260,8 @@ async function loadResourcePackZip(file) {
   // Newer Minecraft resource packs split cow and pig skins into biome variants.
   // Try both modern variant filenames and older single-texture filenames.
   const mobFiles = [
-    ["cow", ["cow/temperate_cow.png", "cow/warm_cow.png", "cow/cold_cow.png", "cow/cow.png", "temperate_cow.png", "cow.png"]],
-    ["pig", ["pig/temperate_pig.png", "pig/warm_pig.png", "pig/cold_pig.png", "pig/pig.png", "temperate_pig.png", "pig.png"]],
+    ["cow", ["cow/cow_temperate.png", "cow/cow_warm.png", "cow/cow_cold.png", "cow/cow_temperate_baby.png", "cow/cow.png", "cow.png"]],
+    ["pig", ["pig/pig_temperate.png", "pig/pig_warm.png", "pig/pig_cold.png", "pig/pig_temperate_baby.png", "pig/pig.png", "pig.png"]],
     ["zombie", ["zombie.png", "zombie/zombie.png"]]
   ];
   for (const [kind, names] of mobFiles) {
@@ -276,7 +279,7 @@ async function loadResourcePackZip(file) {
   if (loaded === 0) {
     throw new Error("No block textures could be loaded. Check that the ZIP contains PNGs in assets/minecraft/textures/block/.");
   }
-  textureStatus.textContent = "Loaded " + loaded + " of 7 block textures. Entity textures — " + mobResults.join(", ") +
+  textureStatus.textContent = "Loaded " + loaded + " of " + jobs.length + " block textures. Entity textures — " + mobResults.join(", ") +
     (missing.length ? ". Default blocks kept for: " + missing.join(", ") + "." : ".");
 }
 
@@ -766,9 +769,9 @@ function hitCreature() {
 }
 function updateDayNight(dt) {
   const cycle=(performance.now()/1000/180)*Math.PI*2;
-  const daylight=Math.max(0.12,(Math.sin(cycle-Math.PI/2)+1)/2);
-  ambientLight.intensity=0.45+daylight*1.2;
-  sun.intensity=0.12+daylight*1.25;
+  const daylight=Math.max(0.12,(Math.sin(cycle+Math.PI/2)+1)/2);
+  ambientLight.intensity=0.8+daylight*1.05;
+  sun.intensity=0.35+daylight*1.15;
   scene.background.setRGB(0.08+daylight*0.46,0.12+daylight*0.58,0.19+daylight*0.72);
   scene.fog.color.copy(scene.background);
 }
