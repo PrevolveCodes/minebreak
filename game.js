@@ -282,7 +282,9 @@ function rebuildTerrain() {
     for (let faceIndex = 0; faceIndex < faceDefs.length; faceIndex++) {
       const face = faceDefs[faceIndex];
       const [nx, ny, nz] = face.n;
-      if (getBlock(x + nx, y + ny, z + nz) !== BLOCKS.AIR) continue;
+      const neighborType = getBlock(x + nx, y + ny, z + nz);
+      // Leaves have transparent cutouts, so keep neighboring log/solid faces visible through them.
+      if (neighborType !== BLOCKS.AIR && !(neighborType === BLOCKS.LEAVES && type !== BLOCKS.LEAVES)) continue;
       const start = data.positions.length / 3;
       for (let i = 0; i < 4; i++) {
         const c = face.c[i];
