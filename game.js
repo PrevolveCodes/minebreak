@@ -36,7 +36,6 @@ const blockNames = ["Grass", "Dirt", "Stone", "Wood"];
 const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD];
 const world = new Map();
 const terrainMeshes = [];
-const materials = {};
 let selectedSlot = 0;
 let yaw = 0;
 let pitch = 0;
