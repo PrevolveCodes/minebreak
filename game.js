@@ -150,14 +150,21 @@ async function loadResourcePackZip(file) {
   textureStatus.textContent = "Reading ZIP…";
   const zip = await JSZip.loadAsync(file);
   const paths = Object.keys(zip.files).filter(path => !zip.files[path].dir && /\.png$/i.test(path));
-  const findTexture = (...names) => paths.find(path => {
-    const lower = path.toLowerCase();
-    return names.some(name => lower.endsWith("/" + name) || lower === name);
-  });
+  // Prefer block textures specifically; never accidentally use an item icon with the same filename.
+  const blockPaths = paths.filter(path => /(?:^|\/)assets\/minecraft\/textures\/block\//i.test(path));
+  const texturePaths = blockPaths.length ? blockPaths : paths.filter(path => /(?:^|\/)textures\/block\//i.test(path));
+  const findTexture = (...names) => {
+    const source = texturePaths.length ? texturePaths : paths;
+    for (const name of names) {
+      const exact = source.find(path => path.toLowerCase().endsWith("/" + name.toLowerCase()));
+      if (exact) return exact;
+    }
+    return undefined;
+  };
   const textureLoader = new THREE.TextureLoader();
   async function loadOne(names, material, transparent = false) {
     const path = findTexture(...names);
-    if (!path) return false;
+    if (!path) return { ok: false, reason: "not found" };
     const blob = await zip.file(path).async("blob");
     const url = URL.createObjectURL(blob);
     try {
@@ -168,32 +175,37 @@ async function loadResourcePackZip(file) {
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
       texture.generateMipmaps = false;
+      texture.needsUpdate = true;
       if (material.map) material.map.dispose();
       material.map = texture;
       material.transparent = transparent;
       material.alphaTest = transparent ? 0.15 : 0;
       material.needsUpdate = true;
-      return true;
+      return { ok: true, path };
     } finally {
       URL.revokeObjectURL(url);
     }
   }
-  let loaded = 0;
   const jobs = [
-    loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat),
-    loadOne(["grass_block_side.png", "grass_side.png"], grassSideMat),
-    loadOne(["dirt.png"], dirtMat),
-    loadOne(["stone.png"], stoneMat),
-    loadOne(["oak_log.png", "oak_wood.png", "log_oak.png"], woodSideMat),
-    loadOne(["oak_log_top.png", "oak_wood_top.png", "log_oak_top.png"], woodTopMat),
-    loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true)
+    ["grass top", () => loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat)],
+    ["grass side", () => loadOne(["grass_block_side.png", "grass_side.png"], grassSideMat)],
+    ["dirt", () => loadOne(["dirt.png"], dirtMat)],
+    ["stone", () => loadOne(["stone.png"], stoneMat)],
+    ["oak log side", () => loadOne(["oak_log.png", "oak_wood.png", "log_oak.png"], woodSideMat)],
+    ["oak log top", () => loadOne(["oak_log_top.png", "oak_wood_top.png", "log_oak_top.png"], woodTopMat)],
+    ["oak leaves", () => loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true)]
   ];
-  const results = await Promise.all(jobs);
-  loaded = results.filter(Boolean).length;
+  const results = await Promise.all(jobs.map(async ([name, load]) => {
+    try { return { name, ...(await load()) }; }
+    catch (error) { console.warn("Texture failed to load:", name, error); return { name, ok: false, reason: "failed to decode" }; }
+  }));
+  const loaded = results.filter(result => result.ok).length;
+  const missing = results.filter(result => !result.ok).map(result => result.name);
   if (loaded === 0) {
-    throw new Error("No matching block PNGs found. Use a Java resource pack ZIP containing assets/minecraft/textures/block/.");
+    throw new Error("No block textures could be loaded. Check that the ZIP contains PNGs in assets/minecraft/textures/block/.");
   }
-  textureStatus.textContent = "Loaded " + loaded + " texture types. Unmatched textures keep their defaults.";
+  textureStatus.textContent = "Loaded " + loaded + " of 7 block textures." +
+    (missing.length ? " Kept defaults for: " + missing.join(", ") + "." : " All supported textures loaded.");
 }
 
 loadTexturesButton.addEventListener("click", async () => {
