@@ -26,9 +26,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 gameRoot.appendChild(renderer.domElement);
 
-const ambientLight = new THREE.HemisphereLight(0xd9efff, 0x65503b, 1.15);
+const ambientLight = new THREE.HemisphereLight(0xd9efff, 0x75634d, 1.65);
 scene.add(ambientLight);
-const sun = new THREE.DirectionalLight(0xfff0d1, 1.65);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.35);
 sun.position.set(-25, 40, 20);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
