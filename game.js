@@ -49,8 +49,8 @@ const PLAYER_HEIGHT = 1.8;
 const PLAYER_RADIUS = 0.30;
 const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5, PLANKS: 6, COAL_ORE: 7, IRON_ORE: 8 };
 const blockNames = ["Grass", "Dirt", "Stone", "Wood", "Planks", "Coal Ore", "Iron Ore"];
-const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD];
-const inventory = [0, 0, 0, 0];
+const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.PLANKS, BLOCKS.COAL_ORE, BLOCKS.IRON_ORE];
+const inventory = [0, 0, 0, 0, 0, 0, 0];
 const extraInventory = { [BLOCKS.PLANKS]: 0, [BLOCKS.COAL_ORE]: 0, [BLOCKS.IRON_ORE]: 0 };
 let health = 20, hunger = 20, survivalClock = 0, autosaveClock = 0;
 const creatures = [];
@@ -418,15 +418,17 @@ function toggleCrafting() {
 function craft(recipe) {
   const message = document.querySelector("#craft-message");
   if (recipe === "planks") {
-    const woodSlot = hotbarTypes.indexOf(BLOCKS.WOOD);
+    const woodSlot = hotbarTypes.indexOf(BLOCKS.WOOD), plankSlot = hotbarTypes.indexOf(BLOCKS.PLANKS);
     if (woodSlot < 0 || inventory[woodSlot] < 1) { message.textContent = "You need 1 Wood in your hotbar."; return; }
+    if (inventory[plankSlot] > MAX_STACK_SIZE - 4) { message.textContent = "Your Planks stack is full."; return; }
     inventory[woodSlot]--;
-    extraInventory[BLOCKS.PLANKS] = Math.min(MAX_STACK_SIZE, extraInventory[BLOCKS.PLANKS] + 4);
-    message.textContent = "Crafted 4 Planks. Planks are stored in the crafting inventory for now.";
+    inventory[plankSlot] += 4;
+    message.textContent = "Crafted 4 Planks.";
   } else if (recipe === "wood-pick") {
     const woodSlot = hotbarTypes.indexOf(BLOCKS.WOOD);
-    if (extraInventory[BLOCKS.PLANKS] < 3 || woodSlot < 0 || inventory[woodSlot] < 2) { message.textContent = "Need 3 Planks and 2 Wood."; return; }
-    extraInventory[BLOCKS.PLANKS] -= 3;
+    const plankSlot = hotbarTypes.indexOf(BLOCKS.PLANKS);
+    if (inventory[plankSlot] < 3 || woodSlot < 0 || inventory[woodSlot] < 2) { message.textContent = "Need 3 Planks and 2 Wood."; return; }
+    inventory[plankSlot] -= 3;
     inventory[woodSlot] -= 2;
     message.textContent = "Crafted a wooden pickaxe! Tool mining speeds are coming in the next pass.";
   }
@@ -496,7 +498,7 @@ document.addEventListener("mousemove", event => {
 document.addEventListener("keydown", event => {
   keys.add(event.code);
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) event.preventDefault();
-  if (/^Digit[1-4]$/.test(event.code)) selectSlot(Number(event.code.slice(5)) - 1);
+  if (/^Digit[1-7]$/.test(event.code)) selectSlot(Number(event.code.slice(5)) - 1);
   if (event.code === "KeyE" && started) toggleCrafting();
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
@@ -521,11 +523,8 @@ function handleMine() {
   if (!target) return;
   const type = getBlock(target.x, target.y, target.z);
   const slot = hotbarTypes.indexOf(type);
-  // Survival mining drops one matching block into the hotbar stack.
+  // Each supported block type drops into its matching hotbar stack.
   if (slot !== -1 && inventory[slot] >= MAX_STACK_SIZE) return;
-  if (type === BLOCKS.PLANKS || type === BLOCKS.COAL_ORE || type === BLOCKS.IRON_ORE) {
-    extraInventory[type] = Math.min(MAX_STACK_SIZE, (extraInventory[type] || 0) + 1);
-  }
   setBlock(target.x, target.y, target.z, BLOCKS.AIR);
   if (slot !== -1) inventory[slot]++;
   renderInventory();
