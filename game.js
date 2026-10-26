@@ -678,7 +678,8 @@ function makeCreature(kind, x, z) {
   if (isCow) {
     // Java cow atlas (64x32): head 0,0; body 18,4; legs 0,16.
     // The vanilla body is rotated horizontally, so it is long along Z.
-    addBox(12,10,18,0,10,0,18,4);
+    const cowBody = addBox(12,18,10,0,10,0,18,4);
+    cowBody.rotation.x = Math.PI / 2;
     addBox(8,8,6,0,12,-8,0,0);
     // Small horns use the same head texture region in the classic cow skin.
     addBox(2,3,2,-5,16,-7,22,0);
@@ -686,7 +687,7 @@ function makeCreature(kind, x, z) {
     for (const [xLeg,zLeg] of [[-4,-3],[4,-3],[-4,3],[4,3]]) addBox(4,12,4,xLeg,6,zLeg,0,16);
   } else if (isPig) {
     // Java pig atlas (64x32): head 0,0; body 28,8; legs 0,16.
-    addBox(10,8,16,0,7,0,28,8);
+    addBox(10,8,16,0,7,0,0,8);
     addBox(8,8,8,0,10,-10,0,0);
     addBox(4,3,1,0,9,-14,16,16);
     for (const [xLeg,zLeg] of [[-3,-5],[3,-5],[-3,5],[3,5]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
