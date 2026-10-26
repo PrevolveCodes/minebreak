@@ -642,19 +642,20 @@ function updatePlayer(dt) {
 const entityTextures = new Map();
 const entityMaterials = new Map();
 
-function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeight, mirror = false) {
-  const geometry = new THREE.BoxGeometry(width / 16, height / 16, depth / 16);
+function remapEntityBoxUvs(geometry, textureWidth, textureHeight) {
+  const spec = geometry.userData.entityBoxUV;
+  if (!spec) return;
   const uv = geometry.attributes.uv;
-  // Java ModelPart cuboids use this unfolded atlas: top/bottom plus four side strips.
+  const { width: w, height: h, depth: d, u, v, mirror } = spec;
+  // Minecraft cuboid UV atlas: side strips plus top and bottom.
   // BoxGeometry face order is +X, -X, +Y, -Y, +Z, -Z.
-  const d = depth, w = width, h = height, u = uvU, v = uvV;
   const rects = [
-    [u+d+w, v+d, d, h],       // east / +X
-    [u, v+d, d, h],           // west / -X
-    [u+d, v, w, d],           // top / +Y
-    [u+d+w, v, w, d],         // bottom / -Y
-    [u+d, v+d, w, h],         // front / +Z
-    [u+d+w+d, v+d, w, h]      // back / -Z
+    [u+d+w, v+d, d, h],
+    [u, v+d, d, h],
+    [u+d, v, w, d],
+    [u+d+w, v, w, d],
+    [u+d, v+d, w, h],
+    [u+d+w+d, v+d, w, h]
   ];
   for (let face = 0; face < 6; face++) {
     const [rx, ry, rw, rh] = rects[face];
@@ -668,6 +669,11 @@ function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeig
     }
   }
   uv.needsUpdate = true;
+}
+function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeight, mirror = false) {
+  const geometry = new THREE.BoxGeometry(width / 16, height / 16, depth / 16);
+  geometry.userData.entityBoxUV = { width, height, depth, u: uvU, v: uvV, mirror };
+  remapEntityBoxUvs(geometry, textureWidth, textureHeight);
   return geometry;
 }
 function makeCreature(kind, x, z) {
@@ -719,6 +725,18 @@ function applyEntityTexture(kind, texture) {
   if (!material) return;
   material.map = texture;
   material.color.setHex(0xffffff);
+  // Modern Minecraft entity skins can be 64x64, while older cow/pig skins
+  // are 64x32. Recalculate every cuboid's UVs using the actual loaded image size.
+  const image = texture.image;
+  const textureWidth = image?.naturalWidth || image?.videoWidth || image?.width || 64;
+  const textureHeight = image?.naturalHeight || image?.videoHeight || image?.height || (kind === "zombie" ? 64 : 32);
+  for (const creature of creatures) {
+    if (creature.kind === kind) creature.group.traverse(object => {
+      if (object.isMesh && object.geometry.userData.entityBoxUV) {
+        remapEntityBoxUvs(object.geometry, textureWidth, textureHeight);
+      }
+    });
+  }
   material.transparent = true;
   material.alphaTest = 0.5;
   material.side = THREE.DoubleSide;
