@@ -176,12 +176,24 @@ async function loadResourcePackZip(file) {
     return undefined;
   };
   const entityPaths = paths.filter(path => /(?:^|\/)assets\/minecraft\/textures\/entity\//i.test(path));
-  const findEntityTexture = (...names) => {
+  const findEntityTexture = (kind, ...names) => {
+    const normalized = path => path.toLowerCase().replace(/\\/g, "/");
     for (const name of names) {
-      const exact = entityPaths.find(path => path.toLowerCase().endsWith("/" + name.toLowerCase()));
+      const exact = entityPaths.find(path => normalized(path).endsWith("/" + name.toLowerCase()));
       if (exact) return exact;
     }
-    return undefined;
+    // Recent Minecraft packs place variant skins in folders such as
+    // textures/entity/cow/temperate.png or textures/entity/pig/temperate.png.
+    const folderMatch = entityPaths.find(path => {
+      const p = normalized(path);
+      return p.includes("/entity/" + kind + "/") && p.endsWith(".png");
+    });
+    if (folderMatch) return folderMatch;
+    // Some template ZIPs omit the assets/minecraft prefix.
+    return paths.find(path => {
+      const p = normalized(path);
+      return p.includes("/textures/entity/" + kind + "/") && p.endsWith(".png");
+    });
   };
   const textureLoader = new THREE.TextureLoader();
   async function decodeTexture(path) {
@@ -250,7 +262,7 @@ async function loadResourcePackZip(file) {
     ["zombie", ["zombie.png", "zombie/zombie.png"]]
   ];
   for (const [kind, names] of mobFiles) {
-    const path = findEntityTexture(...names);
+    const path = findEntityTexture(kind, ...names);
     if (!path) { mobResults.push(kind + ": missing"); continue; }
     try {
       const texture = await decodeTexture(path);
