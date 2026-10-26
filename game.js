@@ -181,7 +181,10 @@ async function loadResourcePackZip(file) {
       // Vanilla grass-top and leaf textures are grayscale tint masks; apply their biome colors.
       material.color.setHex(tint);
       material.transparent = transparent;
-      material.alphaTest = transparent ? 0.15 : 0;
+      // Minecraft leaves are cutout textures: discard transparent pixels and render both sides.
+      material.alphaTest = transparent ? 0.5 : 0;
+      material.side = transparent ? THREE.DoubleSide : THREE.FrontSide;
+      material.depthWrite = true;
       material.needsUpdate = true;
       return { ok: true, path };
     } finally {
