@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8cc9f0">
+  <title>Minebreak — Voxel Sandbox</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="crosshair" aria-hidden="true"></div>
+  <section id="start-screen" class="overlay">
+    <div class="panel">
+      <div class="eyebrow">A voxel sandbox prototype</div>
+      <h1>MINEBREAK</h1>
+      <p>A playable first step. Explore, dig, and build.</p>
+      <button id="play-button">Play world</button>
+      <p class="hint">Click Play, then click the game to capture your mouse.</p>
+      <p id="status" role="status">Generating world…</p>
+    </div>
+  </section>
+  <div id="hud">
+    <div id="top-left"><span class="dot"></span> SURVIVAL PROTOTYPE <span id="coords">X 0 · Y 0 · Z 0</span></div>
+    <div id="hotbar" aria-label="Hotbar">
+      <button class="slot selected" data-slot="0"><span class="slot-number">1</span><span class="block-icon grass"></span><span class="slot-label">Grass</span></button>
+      <button class="slot" data-slot="1"><span class="slot-number">2</span><span class="block-icon dirt"></span><span class="slot-label">Dirt</span></button>
+      <button class="slot" data-slot="2"><span class="slot-number">3</span><span class="block-icon stone"></span><span class="slot-label">Stone</span></button>
+      <button class="slot" data-slot="3"><span class="slot-number">4</span><span class="block-icon wood"></span><span class="slot-label">Wood</span></button>
+    </div>
+    <div id="controls">WASD move · Space jump · Left click mine · Right click place · 1–4 select · Esc release mouse</div>
+  </div>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
