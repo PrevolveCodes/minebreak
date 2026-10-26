@@ -22,12 +22,24 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "h
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = false;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 gameRoot.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xd9efff, 0x65503b, 2.0));
-const sun = new THREE.DirectionalLight(0xfff0d1, 2.2);
+const ambientLight = new THREE.HemisphereLight(0xd9efff, 0x65503b, 1.15);
+scene.add(ambientLight);
+const sun = new THREE.DirectionalLight(0xfff0d1, 1.65);
 sun.position.set(-25, 40, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -28;
+sun.shadow.camera.right = 28;
+sun.shadow.camera.top = 28;
+sun.shadow.camera.bottom = -28;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 100;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.025;
 scene.add(sun);
 
 const WORLD_SIZE = 40;
@@ -309,6 +321,8 @@ function rebuildTerrain() {
     const blockMaterials = materials[type];
     const meshMaterials = blockMaterials.all ? [blockMaterials.all] : [blockMaterials.side, blockMaterials.top, blockMaterials.bottom];
     const mesh = new THREE.Mesh(geometry, meshMaterials);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     mesh.userData.blockType = type;
     scene.add(mesh);
     terrainMeshes.push(mesh);
