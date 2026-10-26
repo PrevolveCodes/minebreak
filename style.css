@@ -2,3 +2,9 @@
 .zip-label{display:block;margin-top:18px;margin-bottom:7px;color:#dce8f2;font-size:12px;font-weight:700}#texture-zip{display:block;width:100%;margin-bottom:9px;color:#dce8f2;font-size:12px}#texture-zip::file-selector-button{border:1px solid #8193a2;border-radius:5px;padding:8px 10px;margin-right:9px;background:#293b4b;color:#fff;cursor:pointer}#load-textures-button{margin-bottom:8px;background:#387fba;box-shadow:inset 0 -3px #225a88}#load-textures-button:hover{background:#4693d2}.panel #texture-status{font-size:11px;margin:4px 0 12px;text-align:center;overflow-wrap:anywhere}#play-button{margin-top:4px}
 /* Survival hotbar stack counts */
 .stack-count{position:absolute;right:4px;bottom:11px;min-width:12px;color:#fff;font-size:13px;font-weight:800;text-align:right;text-shadow:1px 1px 2px #000, -1px -1px 2px #000;pointer-events:none}.slot-label{left:0;right:0;text-align:center}
+
+#survival-ui{position:absolute;top:56px;left:16px;pointer-events:auto;font-size:12px;text-shadow:1px 1px 2px #000}
+.survival-bars{display:flex;gap:8px;margin-bottom:7px}.survival-bars>div{background:#142231cc;border:1px solid #ffffff45;border-radius:4px;padding:7px 10px;font-weight:800}
+.survival-actions{display:flex;gap:6px}.survival-actions button,#craft-panel button{border:1px solid #ffffff55;border-radius:4px;background:#263848e8;color:#fff;padding:7px 10px;cursor:pointer;font-weight:700}
+#craft-panel{margin-top:7px;display:grid;gap:6px;width:240px;padding:10px;background:#142231f2;border:1px solid #ffffff55;border-radius:5px}
+#craft-panel[hidden]{display:none}#craft-panel p{margin:3px 0;color:#d4e0e9;font-size:11px}
