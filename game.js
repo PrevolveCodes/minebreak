@@ -242,10 +242,12 @@ async function loadResourcePackZip(file) {
   const loaded = results.filter(result => result.ok).length;
   const missing = results.filter(result => !result.ok).map(result => result.name);
   const mobResults = [];
+  // Newer Minecraft resource packs split cow and pig skins into biome variants.
+  // Try both modern variant filenames and older single-texture filenames.
   const mobFiles = [
-    ["cow", ["cow/cow.png", "cow.png"]],
-    ["pig", ["pig/pig.png", "pig.png"]],
-    ["zombie", ["zombie.png", "zombie/zombie.png", "zombie/zombie.png"]]
+    ["cow", ["cow/temperate_cow.png", "cow/warm_cow.png", "cow/cold_cow.png", "cow/cow.png", "temperate_cow.png", "cow.png"]],
+    ["pig", ["pig/temperate_pig.png", "pig/warm_pig.png", "pig/cold_pig.png", "pig/pig.png", "temperate_pig.png", "pig.png"]],
+    ["zombie", ["zombie.png", "zombie/zombie.png"]]
   ];
   for (const [kind, names] of mobFiles) {
     const path = findEntityTexture(...names);
