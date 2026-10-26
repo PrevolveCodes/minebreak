@@ -149,7 +149,7 @@ async function loadResourcePackZip(file) {
   if (!file.name.toLowerCase().endsWith(".zip")) throw new Error("Please choose a .zip file.");
   textureStatus.textContent = "Reading ZIP…";
   const zip = await JSZip.loadAsync(file);
-  const paths = Object.keys(zip.files).filter(path => !zip.files[path].dir && /\\.(png)$/i.test(path));
+  const paths = Object.keys(zip.files).filter(path => !zip.files[path].dir && /\.png$/i.test(path));
   const findTexture = (...names) => paths.find(path => {
     const lower = path.toLowerCase();
     return names.some(name => lower.endsWith("/" + name) || lower === name);
