@@ -667,21 +667,20 @@ function makeCreature(kind, x, z) {
     return mesh;
   };
   if (isCow) {
-    // Java cow atlas (64x32): head 0,0; body 18,4; legs 0,16.
-    // The vanilla body is rotated horizontally, so it is long along Z.
-    const cowBody = addBox(12,18,10,0,10,0,18,4);
-    cowBody.rotation.x = Math.PI / 2;
-    addBox(8,8,6,0,12,-8,0,0);
-    // Small horns use the same head texture region in the classic cow skin.
-    addBox(2,3,2,-5,16,-7,22,0);
-    addBox(2,3,2,5,16,-7,22,0,true);
-    for (const [xLeg,zLeg] of [[-4,-3],[4,-3],[-4,3],[4,3]]) addBox(4,12,4,xLeg,6,zLeg,0,16);
+    // Classic Minecraft cow proportions: compact body, large head, short legs.
+    // The face points toward local -Z.
+    addBox(10,8,12,0,11,0,18,4);
+    addBox(8,8,6,0,15,-9,0,0);
+    // Horns sit on the upper sides of the head.
+    addBox(2,3,2,-5,19,-8,22,0);
+    addBox(2,3,2,5,19,-8,22,0,true);
+    for (const [xLeg,zLeg] of [[-3,-4],[3,-4],[-3,4],[3,4]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
   } else if (isPig) {
-    // Java pig atlas (64x32): head 0,0; body 28,8; legs 0,16.
-    addBox(10,8,16,0,7,0,0,8);
-    addBox(8,8,8,0,10,-10,0,0);
-    addBox(4,3,1,0,9,-14,16,16);
-    for (const [xLeg,zLeg] of [[-3,-5],[3,-5],[-3,5],[3,5]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
+    // Classic Minecraft pig proportions: broad body, cube-shaped head and short legs.
+    addBox(10,8,14,0,11,0,28,8);
+    addBox(8,8,8,0,15,-10,0,0);
+    addBox(4,3,2,0,14,-15,16,16);
+    for (const [xLeg,zLeg] of [[-3,-4],[3,-4],[-3,4],[3,4]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
   } else {
     // Java zombie 64x64 atlas: distinct modern UV regions for each limb.
     addBox(8,12,4,0,12,0,16,16);             // torso
@@ -725,8 +724,13 @@ function updateCreatures(dt) {
     else { c.wander-=dt; if(c.wander<=0){c.direction=Math.random()*Math.PI*2;c.wander=2+Math.random()*5;} c.x+=Math.cos(c.direction)*c.speed*dt;c.z+=Math.sin(c.direction)*c.speed*dt; }
     c.x=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.x)); c.z=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.z));
     c.group.position.set(c.x,terrainHeight(Math.floor(c.x),Math.floor(c.z))+1,c.z);
-    // The model's face is local -Z; rotate it toward the player.
-    c.group.rotation.y = Math.atan2(-dx, -dz);
+    // Animals face the direction they are walking and turn as their wandering direction changes.
+    // Zombies instead keep facing the player while pursuing them.
+    if (c.kind === "zombie") {
+      c.group.rotation.y = Math.atan2(-dx, -dz);
+    } else {
+      c.group.rotation.y = Math.atan2(-Math.cos(c.direction), -Math.sin(c.direction));
+    }
     if(c.kind==="zombie" && dist<1.25 && performance.now()/1000-c.lastAttack>1.4){c.lastAttack=performance.now()/1000;damagePlayer(2);}
   }
 }
