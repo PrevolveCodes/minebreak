@@ -136,7 +136,7 @@ const materials = {
   [BLOCKS.DIRT]: { all: dirtMat },
   [BLOCKS.STONE]: { all: stoneMat },
   [BLOCKS.WOOD]: { side: woodSideMat, top: woodTopMat, bottom: woodTopMat },
-  leaves: { all: leavesMat }
+  [BLOCKS.LEAVES]: { all: leavesMat }
 };
 
 function terrainHeight(x, z) {
