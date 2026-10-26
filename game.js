@@ -19,27 +19,18 @@ scene.fog = new THREE.Fog(0x8bc8f0, 28, 76);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 180);
 camera.rotation.order = "YXZ";
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Shadow maps are expensive on many integrated GPUs.
+renderer.shadowMap.enabled = false;
 gameRoot.appendChild(renderer.domElement);
 
 const ambientLight = new THREE.HemisphereLight(0xd9efff, 0x75634d, 1.65);
 scene.add(ambientLight);
 const sun = new THREE.DirectionalLight(0xfff5e6, 1.35);
 sun.position.set(-25, 40, 20);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -28;
-sun.shadow.camera.right = 28;
-sun.shadow.camera.top = 28;
-sun.shadow.camera.bottom = -28;
-sun.shadow.camera.near = 0.5;
-sun.shadow.camera.far = 100;
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.025;
+sun.castShadow = false;
 scene.add(sun);
 
 const WORLD_SIZE = 40;
@@ -672,7 +663,7 @@ function makeCreature(kind, x, z) {
   const addBox = (w,h,d,px,py,pz,u,v) => {
     const mesh = new THREE.Mesh(makeEntityBox(w,h,d,u,v,texSize[0],texSize[1]), material);
     mesh.position.set(px/16,py/16,pz/16);
-    mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh);
+    mesh.castShadow = false; mesh.receiveShadow = false; group.add(mesh);
     return mesh;
   };
   if (isCow) {
@@ -734,7 +725,8 @@ function updateCreatures(dt) {
     else { c.wander-=dt; if(c.wander<=0){c.direction=Math.random()*Math.PI*2;c.wander=2+Math.random()*5;} c.x+=Math.cos(c.direction)*c.speed*dt;c.z+=Math.sin(c.direction)*c.speed*dt; }
     c.x=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.x)); c.z=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.z));
     c.group.position.set(c.x,terrainHeight(Math.floor(c.x),Math.floor(c.z))+1,c.z);
-    // The model's face is local -Z, so add PI to point its face toward the player.\n    c.group.rotation.y=Math.atan2(dx,dz)+Math.PI;
+    // The model's face is local -Z; rotate it toward the player.
+    c.group.rotation.y = Math.atan2(-dx, -dz);
     if(c.kind==="zombie" && dist<1.25 && performance.now()/1000-c.lastAttack>1.4){c.lastAttack=performance.now()/1000;damagePlayer(2);}
   }
 }
@@ -762,20 +754,31 @@ function updateDayNight(dt) {
   scene.background.setRGB(0.08+daylight*0.46,0.12+daylight*0.58,0.19+daylight*0.72);
   scene.fog.color.copy(scene.background);
 }
+let creatureUpdateAccumulator = 0;
+let lightingUpdateAccumulator = 0;
 function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastTime) / 1000, 0.04);
   lastTime = now;
   if (locked) updatePlayer(dt);
-  updateCreatures(dt);
-  updateDayNight(dt);
+  // Mob movement and sky lighting can update less often than the rendered frame rate.
+  creatureUpdateAccumulator += dt;
+  if (creatureUpdateAccumulator >= 0.05) {
+    updateCreatures(creatureUpdateAccumulator);
+    creatureUpdateAccumulator = 0;
+  }
+  lightingUpdateAccumulator += dt;
+  if (lightingUpdateAccumulator >= 0.1) {
+    updateDayNight(lightingUpdateAccumulator);
+    lightingUpdateAccumulator = 0;
+  }
   renderer.render(scene, camera);
 }
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
 });
 
 generateWorld();
