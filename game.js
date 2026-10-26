@@ -646,6 +646,12 @@ function remapEntityBoxUvs(geometry, textureWidth, textureHeight) {
   const spec = geometry.userData.entityBoxUV;
   if (!spec) return;
   const uv = geometry.attributes.uv;
+  // Preserve the original 0..1 face UVs. Remapping already-remapped UVs
+  // repeatedly collapses every face onto a tiny part of the texture.
+  if (!geometry.userData.entityBoxBaseUvs) {
+    geometry.userData.entityBoxBaseUvs = Array.from(uv.array);
+  }
+  const baseUvs = geometry.userData.entityBoxBaseUvs;
   const { width: w, height: h, depth: d, u, v, mirror } = spec;
   // Minecraft cuboid UV atlas: side strips plus top and bottom.
   // BoxGeometry face order is +X, -X, +Y, -Y, +Z, -Z.
@@ -660,8 +666,8 @@ function remapEntityBoxUvs(geometry, textureWidth, textureHeight) {
   for (let face = 0; face < 6; face++) {
     const [rx, ry, rw, rh] = rects[face];
     for (let corner = 0; corner < 4; corner++) {
-      const oldU = uv.getX(face * 4 + corner);
-      const oldV = uv.getY(face * 4 + corner);
+      const oldU = baseUvs[(face * 4 + corner) * 2];
+      const oldV = baseUvs[(face * 4 + corner) * 2 + 1];
       const faceU = mirror ? 1 - oldU : oldU;
       uv.setXY(face * 4 + corner,
         (rx + faceU * rw) / textureWidth,
