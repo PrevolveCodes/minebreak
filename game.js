@@ -31,7 +31,7 @@ const WORLD_HALF = WORLD_SIZE / 2;
 const MAX_REACH = 6;
 const PLAYER_HEIGHT = 1.8;
 const PLAYER_RADIUS = 0.30;
-const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4 };
+const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5 };
 const blockNames = ["Grass", "Dirt", "Stone", "Wood"];
 const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD];
 const world = new Map();
@@ -68,31 +68,51 @@ function makePixelTexture(base, accent, seed = 1, style = "noise") {
   ctx.fillRect(0, 0, size, size);
   let s = seed >>> 0;
   const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-  for (let i = 0; i < 75; i++) {
-    const x = Math.floor(rand() * size), y = Math.floor(rand() * size);
-    const w = style === "wood" ? 1 + Math.floor(rand() * 2) : 1 + Math.floor(rand() * 3);
-    const h = style === "wood" ? 2 + Math.floor(rand() * 7) : 1 + Math.floor(rand() * 3);
-    ctx.globalAlpha = 0.2 + rand() * 0.45;
-    ctx.fillStyle = accent;
-    ctx.fillRect(x, y, w, h);
-  }
-  if (style === "grass") {
-    ctx.globalAlpha = 1;
+
+  if (style === "grassTop") {
+    for (let i = 0; i < 95; i++) {
+      ctx.fillStyle = rand() > 0.5 ? "#4b9133" : "#72b847";
+      ctx.fillRect(Math.floor(rand() * 16), Math.floor(rand() * 16), 1 + Math.floor(rand() * 2), 1 + Math.floor(rand() * 2));
+    }
+  } else if (style === "grassSide") {
     ctx.fillStyle = "#765035";
-    ctx.fillRect(0, 6, 16, 10);
-    for (let i = 0; i < 24; i++) {
-      ctx.fillStyle = i % 2 ? "#5d9d37" : "#78bd4c";
-      ctx.fillRect(Math.floor(rand() * 16), 6 + Math.floor(rand() * 2), 1, 1);
+    ctx.fillRect(0, 3, 16, 13);
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = ["#69452d", "#805331", "#8c6039"][Math.floor(rand() * 3)];
+      ctx.fillRect(Math.floor(rand() * 16), 4 + Math.floor(rand() * 12), 1 + Math.floor(rand() * 2), 1);
     }
-    for (let i = 0; i < 35; i++) {
-      ctx.fillStyle = i % 2 ? "#8c6039" : "#69452d";
-      ctx.fillRect(Math.floor(rand() * 16), 7 + Math.floor(rand() * 9), 1 + Math.floor(rand() * 2), 1);
+    ctx.fillStyle = "#4d9133";
+    ctx.fillRect(0, 0, 16, 3);
+    for (let i = 0; i < 28; i++) {
+      ctx.fillStyle = rand() > 0.5 ? "#6caf40" : "#387a28";
+      ctx.fillRect(Math.floor(rand() * 16), Math.floor(rand() * 3), 1, 1);
     }
-  }
-  if (style === "wood") {
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = "#684324";
+    for (let i = 0; i < 13; i++) {
+      ctx.fillStyle = "#3d7d2b";
+      ctx.fillRect(Math.floor(rand() * 16), 3, 1, 1);
+    }
+  } else if (style === "woodSide") {
+    for (let i = 0; i < 65; i++) {
+      ctx.fillStyle = rand() > 0.5 ? "#80552e" : "#b1854e";
+      ctx.fillRect(Math.floor(rand() * 16), Math.floor(rand() * 16), 1, 2 + Math.floor(rand() * 5));
+    }
+    ctx.fillStyle = "#694522";
     for (let x = 2; x < 16; x += 5) ctx.fillRect(x, 0, 1, 16);
+  } else if (style === "woodTop") {
+    ctx.fillStyle = "#684324";
+    ctx.fillRect(1, 1, 14, 14);
+    ctx.fillStyle = "#c49a61";
+    ctx.fillRect(3, 3, 10, 10);
+    ctx.fillStyle = "#8c6237";
+    ctx.fillRect(5, 5, 6, 6);
+    ctx.fillStyle = "#d0a873";
+    ctx.fillRect(7, 7, 2, 2);
+  } else {
+    for (let i = 0; i < 75; i++) {
+      ctx.globalAlpha = 0.25 + rand() * 0.4;
+      ctx.fillStyle = accent;
+      ctx.fillRect(Math.floor(rand() * 16), Math.floor(rand() * 16), 1 + Math.floor(rand() * 2), 1 + Math.floor(rand() * 2));
+    }
   }
   ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(canvas);
@@ -102,10 +122,23 @@ function makePixelTexture(base, accent, seed = 1, style = "noise") {
   return texture;
 }
 
-materials[BLOCKS.GRASS] = new THREE.MeshLambertMaterial({ map: makePixelTexture("#59a83d", "#a3d85c", 12, "grass") });
-materials[BLOCKS.DIRT] = new THREE.MeshLambertMaterial({ map: makePixelTexture("#805331", "#c08a50", 24) });
-materials[BLOCKS.STONE] = new THREE.MeshLambertMaterial({ map: makePixelTexture("#858a8b", "#c0c3c0", 31) });
-materials[BLOCKS.WOOD] = new THREE.MeshLambertMaterial({ map: makePixelTexture("#9b6a39", "#d0a05c", 42, "wood") });
+function makeMaterial(texture) {
+  return new THREE.MeshLambertMaterial({ map: texture });
+}
+const grassTopMat = makeMaterial(makePixelTexture("#59a83d", "#a3d85c", 12, "grassTop"));
+const grassSideMat = makeMaterial(makePixelTexture("#59a83d", "#a3d85c", 13, "grassSide"));
+const dirtMat = makeMaterial(makePixelTexture("#805331", "#c08a50", 24));
+const stoneMat = makeMaterial(makePixelTexture("#858a8b", "#c0c3c0", 31));
+const woodSideMat = makeMaterial(makePixelTexture("#9b6a39", "#d0a05c", 42, "woodSide"));
+const woodTopMat = makeMaterial(makePixelTexture("#9b6a39", "#d0a05c", 43, "woodTop"));
+const leavesMat = makeMaterial(makePixelTexture("#326b2c", "#64a83d", 51));
+const materials = {
+  [BLOCKS.GRASS]: { side: grassSideMat, top: grassTopMat, bottom: dirtMat },
+  [BLOCKS.DIRT]: { all: dirtMat },
+  [BLOCKS.STONE]: { all: stoneMat },
+  [BLOCKS.WOOD]: { side: woodSideMat, top: woodTopMat, bottom: woodTopMat },
+  leaves: { all: leavesMat }
+};
 
 function terrainHeight(x, z) {
   const hills = Math.sin(x * 0.22) * 1.7 + Math.cos(z * 0.19) * 1.5 + Math.sin((x + z) * 0.13) * 1.3;
@@ -133,7 +166,7 @@ function generateWorld() {
       for (let dy = 3; dy <= 5; dy++) {
         if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy - 4) <= 4 && getBlock(x + dx, ground + dy, z + dz) === BLOCKS.AIR) {
           // Leaves use the grass texture temporarily until leaf blocks are added.
-          setBlock(x + dx, ground + dy, z + dz, BLOCKS.GRASS);
+          setBlock(x + dx, ground + dy, z + dz, BLOCKS.LEAVES);
         }
       }
     }
@@ -156,12 +189,13 @@ function rebuildTerrain() {
   }
   terrainMeshes.length = 0;
   const geometryData = new Map();
-  for (const type of hotbarTypes) geometryData.set(type, { positions: [], normals: [], uvs: [], indices: [] });
+  for (const type of [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.LEAVES]) geometryData.set(type, { positions: [], normals: [], uvs: [], indices: [], groups: [] });
   for (const [key, type] of world) {
     const [x, y, z] = key.split(",").map(Number);
     const data = geometryData.get(type);
     if (!data) continue;
-    for (const face of faceDefs) {
+    for (let faceIndex = 0; faceIndex < faceDefs.length; faceIndex++) {
+      const face = faceDefs[faceIndex];
       const [nx, ny, nz] = face.n;
       if (getBlock(x + nx, y + ny, z + nz) !== BLOCKS.AIR) continue;
       const start = data.positions.length / 3;
@@ -171,6 +205,8 @@ function rebuildTerrain() {
         data.normals.push(nx, ny, nz);
       }
       data.uvs.push(0,0, 0,1, 1,1, 1,0);
+      const materialIndex = type === BLOCKS.GRASS ? (faceIndex === 2 ? 1 : faceIndex === 3 ? 2 : 0) : type === BLOCKS.WOOD ? ((faceIndex === 2 || faceIndex === 3) ? 1 : 0) : 0;
+      data.groups.push({ start: data.indices.length, count: 6, materialIndex });
       data.indices.push(start, start+1, start+2, start, start+2, start+3);
     }
   }
@@ -181,8 +217,11 @@ function rebuildTerrain() {
     geometry.setAttribute("normal", new THREE.Float32BufferAttribute(data.normals, 3));
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(data.uvs, 2));
     geometry.setIndex(data.indices);
+    for (const group of data.groups) geometry.addGroup(group.start, group.count, group.materialIndex);
     geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, materials[type]);
+    const blockMaterials = materials[type];
+    const meshMaterials = blockMaterials.all ? [blockMaterials.all] : [blockMaterials.side, blockMaterials.top, blockMaterials.bottom];
+    const mesh = new THREE.Mesh(geometry, meshMaterials);
     mesh.userData.blockType = type;
     scene.add(mesh);
     terrainMeshes.push(mesh);
