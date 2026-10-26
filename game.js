@@ -162,7 +162,7 @@ async function loadResourcePackZip(file) {
     return undefined;
   };
   const textureLoader = new THREE.TextureLoader();
-  async function loadOne(names, material, transparent = false) {
+  async function loadOne(names, material, transparent = false, tint = 0xffffff) {
     const path = findTexture(...names);
     if (!path) return { ok: false, reason: "not found" };
     const blob = await zip.file(path).async("blob");
@@ -178,6 +178,8 @@ async function loadResourcePackZip(file) {
       texture.needsUpdate = true;
       if (material.map) material.map.dispose();
       material.map = texture;
+      // Vanilla grass-top and leaf textures are grayscale tint masks; apply their biome colors.
+      material.color.setHex(tint);
       material.transparent = transparent;
       material.alphaTest = transparent ? 0.15 : 0;
       material.needsUpdate = true;
@@ -187,13 +189,13 @@ async function loadResourcePackZip(file) {
     }
   }
   const jobs = [
-    ["grass top", () => loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat)],
+    ["grass top", () => loadOne(["grass_block_top.png", "grass_top.png"], grassTopMat, false, 0x59a83d)],
     ["grass side", () => loadOne(["grass_block_side.png", "grass_side.png"], grassSideMat)],
     ["dirt", () => loadOne(["dirt.png"], dirtMat)],
     ["stone", () => loadOne(["stone.png"], stoneMat)],
     ["oak log side", () => loadOne(["oak_log.png", "oak_wood.png", "log_oak.png"], woodSideMat)],
     ["oak log top", () => loadOne(["oak_log_top.png", "oak_wood_top.png", "log_oak_top.png"], woodTopMat)],
-    ["oak leaves", () => loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true)]
+    ["oak leaves", () => loadOne(["oak_leaves.png", "leaves_oak.png"], leavesMat, true, 0x326b2c)]
   ];
   const results = await Promise.all(jobs.map(async ([name, load]) => {
     try { return { name, ...(await load()) }; }
