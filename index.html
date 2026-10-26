@@ -35,12 +35,12 @@
   <div id="hud">
     <div id="top-left"><span class="dot"></span> SURVIVAL PROTOTYPE <span id="coords">X 0 · Y 0 · Z 0</span></div>
     <div id="hotbar" aria-label="Hotbar">
-      <button class="slot selected" data-slot="0"><span class="slot-number">1</span><span class="block-icon grass"></span><span class="slot-label">Grass</span></button>
-      <button class="slot" data-slot="1"><span class="slot-number">2</span><span class="block-icon dirt"></span><span class="slot-label">Dirt</span></button>
-      <button class="slot" data-slot="2"><span class="slot-number">3</span><span class="block-icon stone"></span><span class="slot-label">Stone</span></button>
-      <button class="slot" data-slot="3"><span class="slot-number">4</span><span class="block-icon wood"></span><span class="slot-label">Wood</span></button>
+      <button class="slot selected" data-slot="0"><span class="slot-number">1</span><span class="block-icon grass"></span><span class="slot-label">Grass</span><span class="stack-count"></span></button>
+      <button class="slot" data-slot="1"><span class="slot-number">2</span><span class="block-icon dirt"></span><span class="slot-label">Dirt</span><span class="stack-count"></span></button>
+      <button class="slot" data-slot="2"><span class="slot-number">3</span><span class="block-icon stone"></span><span class="slot-label">Stone</span><span class="stack-count"></span></button>
+      <button class="slot" data-slot="3"><span class="slot-number">4</span><span class="block-icon wood"></span><span class="slot-label">Wood</span><span class="stack-count"></span></button>
     </div>
-    <div id="controls">WASD move · Space jump · Left click mine · Right click place · 1–4 select · Esc release mouse</div>
+    <div id="controls">WASD move · Space jump · Left click mine · Right click place (uses stack) · 1–4 select · Esc release mouse</div>
   </div>
   <script type="module" src="./game.js"></script>
 </body>
