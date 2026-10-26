@@ -634,26 +634,28 @@ function updatePlayer(dt) {
 const entityTextures = new Map();
 const entityMaterials = new Map();
 
-function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeight) {
+function makeEntityBox(width, height, depth, uvU, uvV, textureWidth, textureHeight, mirror = false) {
   const geometry = new THREE.BoxGeometry(width / 16, height / 16, depth / 16);
   const uv = geometry.attributes.uv;
-  // Minecraft's classic cuboid atlas: side strip plus top and bottom rectangles.
+  // Java ModelPart cuboids use this unfolded atlas: top/bottom plus four side strips.
+  // BoxGeometry face order is +X, -X, +Y, -Y, +Z, -Z.
   const d = depth, w = width, h = height, u = uvU, v = uvV;
   const rects = [
-    [u+d+w, v+d, d, h], // right
-    [u, v+d, d, h],     // left
-    [u+d, v, w, d],     // top
-    [u+d+w, v, w, d],   // bottom
-    [u+d, v+d, w, h],   // front
-    [u+d+w+d, v+d, w, h]// back
+    [u+d+w, v+d, d, h],       // east / +X
+    [u, v+d, d, h],           // west / -X
+    [u+d, v, w, d],           // top / +Y
+    [u+d+w, v, w, d],         // bottom / -Y
+    [u+d, v+d, w, h],         // front / +Z
+    [u+d+w+d, v+d, w, h]      // back / -Z
   ];
   for (let face = 0; face < 6; face++) {
     const [rx, ry, rw, rh] = rects[face];
-    for (let i = 0; i < 4; i++) {
-      const oldU = uv.getX(face * 4 + i);
-      const oldV = uv.getY(face * 4 + i);
-      uv.setXY(face * 4 + i,
-        (rx + oldU * rw) / textureWidth,
+    for (let corner = 0; corner < 4; corner++) {
+      const oldU = uv.getX(face * 4 + corner);
+      const oldV = uv.getY(face * 4 + corner);
+      const faceU = mirror ? 1 - oldU : oldU;
+      uv.setXY(face * 4 + corner,
+        (rx + faceU * rw) / textureWidth,
         1 - (ry + (1 - oldV) * rh) / textureHeight);
     }
   }
@@ -674,24 +676,28 @@ function makeCreature(kind, x, z) {
     return mesh;
   };
   if (isCow) {
-    // Approximate vanilla Java cow model: long body, raised head, four short legs.
-    addBox(12,18,10,-2,6,0,18,4);
-    addBox(8,8,6,0,14,-8,0,0);
-    for (const [xLeg,zLeg] of [[-4,-3],[4,-3],[-4,3],[4,3]]) addBox(4,12,4,xLeg,0,zLeg,0,16);
+    // Java cow atlas (64x32): head 0,0; body 18,4; legs 0,16.
+    // The vanilla body is rotated horizontally, so it is long along Z.
+    addBox(12,10,18,0,10,0,18,4);
+    addBox(8,8,6,0,12,-8,0,0);
+    // Small horns use the same head texture region in the classic cow skin.
+    addBox(2,3,2,-5,16,-7,22,0);
+    addBox(2,3,2,5,16,-7,22,0,true);
+    for (const [xLeg,zLeg] of [[-4,-3],[4,-3],[-4,3],[4,3]]) addBox(4,12,4,xLeg,6,zLeg,0,16);
   } else if (isPig) {
-    // Vanilla pig proportions and the characteristic square snout.
+    // Java pig atlas (64x32): head 0,0; body 28,8; legs 0,16.
     addBox(10,8,16,0,7,0,28,8);
     addBox(8,8,8,0,10,-10,0,0);
     addBox(4,3,1,0,9,-14,16,16);
-    for (const [xLeg,zLeg] of [[-3,-5],[3,-5],[-3,5],[3,5]]) addBox(4,6,4,xLeg,0,zLeg,0,16);
+    for (const [xLeg,zLeg] of [[-3,-5],[3,-5],[-3,5],[3,5]]) addBox(4,6,4,xLeg,3,zLeg,0,16);
   } else {
-    // Classic Java zombie proportions with separate head, torso, arms, and legs.
-    addBox(8,12,4,0,12,0,16,16);
-    addBox(8,8,8,0,22,0,0,0);
-    addBox(4,12,4,-6,12,0,40,16);
-    addBox(4,12,4,6,12,0,40,16);
-    addBox(4,12,4,-2,0,0,0,16);
-    addBox(4,12,4,2,0,0,0,16);
+    // Java zombie 64x64 atlas: distinct modern UV regions for each limb.
+    addBox(8,12,4,0,12,0,16,16);             // torso
+    addBox(8,8,8,0,22,0,0,0);                // head
+    addBox(4,12,4,-6,12,0,40,16);            // right arm
+    addBox(4,12,4,6,12,0,32,48,true);       // left arm (separate mirrored region)
+    addBox(4,12,4,-2,6,0,0,16);              // right leg
+    addBox(4,12,4,2,6,0,16,48,true);        // left leg (separate mirrored region)
   }
   group.position.set(x, terrainHeight(Math.floor(x),Math.floor(z))+1, z);
   scene.add(group);
@@ -727,7 +733,7 @@ function updateCreatures(dt) {
     else { c.wander-=dt; if(c.wander<=0){c.direction=Math.random()*Math.PI*2;c.wander=2+Math.random()*5;} c.x+=Math.cos(c.direction)*c.speed*dt;c.z+=Math.sin(c.direction)*c.speed*dt; }
     c.x=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.x)); c.z=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.z));
     c.group.position.set(c.x,terrainHeight(Math.floor(c.x),Math.floor(c.z))+1,c.z);
-    c.group.rotation.y=Math.atan2(dx,dz);
+    // The model's face is local -Z, so add PI to point its face toward the player.\n    c.group.rotation.y=Math.atan2(dx,dz)+Math.PI;
     if(c.kind==="zombie" && dist<1.25 && performance.now()/1000-c.lastAttack>1.4){c.lastAttack=performance.now()/1000;damagePlayer(2);}
   }
 }
