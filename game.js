@@ -47,10 +47,13 @@ const WORLD_HALF = WORLD_SIZE / 2;
 const MAX_REACH = 6;
 const PLAYER_HEIGHT = 1.8;
 const PLAYER_RADIUS = 0.30;
-const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5 };
-const blockNames = ["Grass", "Dirt", "Stone", "Wood"];
+const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5, PLANKS: 6, COAL_ORE: 7, IRON_ORE: 8 };
+const blockNames = ["Grass", "Dirt", "Stone", "Wood", "Planks", "Coal Ore", "Iron Ore"];
 const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD];
 const inventory = [0, 0, 0, 0];
+const extraInventory = { [BLOCKS.PLANKS]: 0, [BLOCKS.COAL_ORE]: 0, [BLOCKS.IRON_ORE]: 0 };
+let health = 20, hunger = 20, survivalClock = 0, autosaveClock = 0;
+const creatures = [];
 const MAX_STACK_SIZE = 64;
 const world = new Map();
 const terrainMeshes = [];
@@ -149,12 +152,18 @@ const stoneMat = makeMaterial(makePixelTexture("#858a8b", "#c0c3c0", 31));
 const woodSideMat = makeMaterial(makePixelTexture("#9b6a39", "#d0a05c", 42, "woodSide"));
 const woodTopMat = makeMaterial(makePixelTexture("#9b6a39", "#d0a05c", 43, "woodTop"));
 const leavesMat = makeMaterial(makePixelTexture("#326b2c", "#64a83d", 51));
+const planksMat = makeMaterial(makePixelTexture("#b58a54", "#e0bd7c", 61, "woodSide"));
+const coalOreMat = makeMaterial(makePixelTexture("#777b7c", "#272a2b", 71));
+const ironOreMat = makeMaterial(makePixelTexture("#858a8b", "#c7a78c", 81));
 const materials = {
   [BLOCKS.GRASS]: { side: grassSideMat, top: grassTopMat, bottom: dirtMat },
   [BLOCKS.DIRT]: { all: dirtMat },
   [BLOCKS.STONE]: { all: stoneMat },
   [BLOCKS.WOOD]: { side: woodSideMat, top: woodTopMat, bottom: woodTopMat },
-  [BLOCKS.LEAVES]: { all: leavesMat }
+  [BLOCKS.LEAVES]: { all: leavesMat },
+  [BLOCKS.PLANKS]: { all: planksMat },
+  [BLOCKS.COAL_ORE]: { all: coalOreMat },
+  [BLOCKS.IRON_ORE]: { all: ironOreMat }
 };
 
 
@@ -256,6 +265,16 @@ function generateWorld() {
       }
     }
   }
+  // Small underground ore deposits. The first version uses exposed ore blocks inside stone.
+  let oreSeed = 9281;
+  const randomOre = () => { oreSeed = (oreSeed * 1664525 + 1013904223) >>> 0; return oreSeed / 4294967296; };
+  for (let x = -WORLD_HALF + 2; x < WORLD_HALF - 2; x++) for (let z = -WORLD_HALF + 2; z < WORLD_HALF - 2; z++) {
+    for (let y = 1; y <= 4; y++) {
+      if (getBlock(x, y, z) === BLOCKS.STONE && randomOre() < 0.018) setBlock(x, y, z, y <= 2 && randomOre() < 0.35 ? BLOCKS.IRON_ORE : BLOCKS.COAL_ORE);
+      // Simple one-block cave pockets in the lower layers.
+      if (y <= 3 && randomOre() < 0.008) setBlock(x, y, z, BLOCKS.AIR);
+    }
+  }
   // A few simple trees make the first world feel less empty.
   const trees = [[-8, -7], [7, -9], [10, 6], [-12, 9], [2, 13], [14, -1]];
   for (const [x, z] of trees) {
@@ -288,7 +307,7 @@ function rebuildTerrain() {
   }
   terrainMeshes.length = 0;
   const geometryData = new Map();
-  for (const type of [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.LEAVES]) geometryData.set(type, { positions: [], normals: [], uvs: [], indices: [], groups: [] });
+  for (const type of [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.LEAVES, BLOCKS.PLANKS, BLOCKS.COAL_ORE, BLOCKS.IRON_ORE]) geometryData.set(type, { positions: [], normals: [], uvs: [], indices: [], groups: [] });
   for (const [key, type] of world) {
     const [x, y, z] = key.split(",").map(Number);
     const data = geometryData.get(type);
@@ -374,6 +393,80 @@ function selectSlot(index) {
 document.querySelectorAll(".slot").forEach((el, i) => el.addEventListener("click", () => selectSlot(i)));
 renderInventory();
 
+function setupSurvivalUI() {
+  let panel = document.querySelector("#survival-ui");
+  if (panel) return;
+  panel = document.createElement("div");
+  panel.id = "survival-ui";
+  panel.innerHTML = '<div class="survival-bars"><div>♥ <span id="health-value">20</span>/20</div><div>Food <span id="hunger-value">20</span>/20</div></div><div class="survival-actions"><button id="craft-button">Craft (E)</button><button id="save-button">Save world</button></div><div id="craft-panel" hidden><strong>Crafting</strong><button data-recipe="planks">4 Planks (1 Wood)</button><button data-recipe="wood-pick">Wooden Pickaxe (3 Planks + 2 Wood)</button><button id="close-craft">Close</button><p id="craft-message">Recipes are basic for now.</p></div>';
+  hud.appendChild(panel);
+  document.querySelector("#craft-button").addEventListener("click", toggleCrafting);
+  document.querySelector("#save-button").addEventListener("click", saveWorld);
+  document.querySelector("#close-craft").addEventListener("click", toggleCrafting);
+  panel.querySelectorAll("[data-recipe]").forEach(button => button.addEventListener("click", () => craft(button.dataset.recipe)));
+  updateSurvivalUI();
+}
+function updateSurvivalUI() {
+  const h = document.querySelector("#health-value"), f = document.querySelector("#hunger-value");
+  if (h) h.textContent = String(Math.max(0, Math.ceil(health)));
+  if (f) f.textContent = String(Math.max(0, Math.ceil(hunger)));
+}
+function toggleCrafting() {
+  const panel = document.querySelector("#craft-panel");
+  if (panel) panel.hidden = !panel.hidden;
+}
+function craft(recipe) {
+  const message = document.querySelector("#craft-message");
+  if (recipe === "planks") {
+    const woodSlot = hotbarTypes.indexOf(BLOCKS.WOOD);
+    if (woodSlot < 0 || inventory[woodSlot] < 1) { message.textContent = "You need 1 Wood in your hotbar."; return; }
+    inventory[woodSlot]--;
+    extraInventory[BLOCKS.PLANKS] = Math.min(MAX_STACK_SIZE, extraInventory[BLOCKS.PLANKS] + 4);
+    message.textContent = "Crafted 4 Planks. Planks are stored in the crafting inventory for now.";
+  } else if (recipe === "wood-pick") {
+    const woodSlot = hotbarTypes.indexOf(BLOCKS.WOOD);
+    if (extraInventory[BLOCKS.PLANKS] < 3 || woodSlot < 0 || inventory[woodSlot] < 2) { message.textContent = "Need 3 Planks and 2 Wood."; return; }
+    extraInventory[BLOCKS.PLANKS] -= 3;
+    inventory[woodSlot] -= 2;
+    message.textContent = "Crafted a wooden pickaxe! Tool mining speeds are coming in the next pass.";
+  }
+  renderInventory();
+  updateSurvivalUI();
+  saveWorld(false);
+}
+function saveWorld(showMessage = true) {
+  try {
+    const data = { version: 1, world: Array.from(world.entries()), inventory, extraInventory, player: {x:player.x,y:player.y,z:player.z}, health, hunger, survivalClock };
+    localStorage.setItem("minebreak-save-v1", JSON.stringify(data));
+    if (showMessage) statusText.textContent = "World saved in this browser.";
+  } catch (error) { if (showMessage) statusText.textContent = "Could not save: browser storage may be full or disabled."; }
+}
+function loadSavedWorld() {
+  try {
+    const raw = localStorage.getItem("minebreak-save-v1");
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.version !== 1 || !Array.isArray(data.world)) return false;
+    world.clear();
+    for (const [key, type] of data.world) if (typeof key === "string" && Number.isInteger(type)) world.set(key, type);
+    if (Array.isArray(data.inventory)) data.inventory.forEach((v,i) => { if (i < inventory.length) inventory[i] = Math.max(0, Math.min(MAX_STACK_SIZE, Number(v) || 0)); });
+    if (data.extraInventory) for (const id of Object.keys(extraInventory)) extraInventory[id] = Math.max(0, Math.min(MAX_STACK_SIZE, Number(data.extraInventory[id]) || 0));
+    if (data.player) { player.x = Number(data.player.x) || 0.5; player.y = Number(data.player.y) || 10; player.z = Number(data.player.z) || 0.5; }
+    health = Math.max(1, Math.min(20, Number(data.health) || 20));
+    hunger = Math.max(0, Math.min(20, Number(data.hunger) || 20));
+    survivalClock = Number(data.survivalClock) || 0;
+    return true;
+  } catch (error) { console.warn("Minebreak save could not be loaded:", error); return false; }
+}
+function damagePlayer(amount) {
+  health = Math.max(0, health - amount);
+  if (health <= 0) {
+    health = 20; hunger = Math.max(8, hunger); velocityY = 0;
+    findSpawn();
+    statusText.textContent = "You respawned. Your blocks stay where they were.";
+  }
+  updateSurvivalUI();
+}
 function requestLock() { renderer.domElement.requestPointerLock?.(); }
 playButton.addEventListener("click", () => {
   started = true;
@@ -404,6 +497,7 @@ document.addEventListener("keydown", event => {
   keys.add(event.code);
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) event.preventDefault();
   if (/^Digit[1-4]$/.test(event.code)) selectSlot(Number(event.code.slice(5)) - 1);
+  if (event.code === "KeyE" && started) toggleCrafting();
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
 document.addEventListener("wheel", event => {
@@ -429,6 +523,9 @@ function handleMine() {
   const slot = hotbarTypes.indexOf(type);
   // Survival mining drops one matching block into the hotbar stack.
   if (slot !== -1 && inventory[slot] >= MAX_STACK_SIZE) return;
+  if (type === BLOCKS.PLANKS || type === BLOCKS.COAL_ORE || type === BLOCKS.IRON_ORE) {
+    extraInventory[type] = Math.min(MAX_STACK_SIZE, (extraInventory[type] || 0) + 1);
+  }
   setBlock(target.x, target.y, target.z, BLOCKS.AIR);
   if (slot !== -1) inventory[slot]++;
   renderInventory();
@@ -452,7 +549,7 @@ function handlePlace() {
 }
 document.addEventListener("mousedown", event => {
   if (!locked) return;
-  if (event.button === 0) handleMine();
+  if (event.button === 0) { if (!hitCreature()) handleMine(); }
   if (event.button === 2) handlePlace();
 });
 
@@ -484,18 +581,82 @@ function updatePlayer(dt) {
     if (velocityY < 0) onGround = true;
     velocityY = 0;
   }
-  if (player.y < -10) findSpawn();
+  if (player.y < -10) { damagePlayer(health); findSpawn(); }
+  if (player.y < (terrainHeight(Math.floor(player.x), Math.floor(player.z)) - 3) && velocityY < -9) damagePlayer(2);
+  survivalClock += dt;
+  autosaveClock += dt;
+  if (survivalClock > 30) { survivalClock = 0; hunger = Math.max(0, hunger - 1); if (hunger === 0) damagePlayer(1); updateSurvivalUI(); }
+  if (autosaveClock > 20) { autosaveClock = 0; saveWorld(false); }
   player.x = Math.max(-WORLD_HALF + 0.5, Math.min(WORLD_HALF - 0.5, player.x));
   player.z = Math.max(-WORLD_HALF + 0.5, Math.min(WORLD_HALF - 0.5, player.z));
   updateCamera();
   coordsText.textContent = "X " + Math.floor(player.x) + " · Y " + Math.floor(player.y) + " · Z " + Math.floor(player.z);
 }
 
+function makeCreature(kind, x, z) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: kind === "cow" ? 0x76513a : kind === "pig" ? 0xe99b9b : 0x4c8f47 });
+  const darkMat = new THREE.MeshLambertMaterial({ color: kind === "cow" ? 0x33251d : 0x4b2929 });
+  function cube(w,h,d,mat,px,py,pz) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    mesh.position.set(px,py,pz); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh;
+  }
+  cube(0.95,0.55,0.48,bodyMat,0,0.68,0);
+  cube(0.36,0.38,0.38,bodyMat,0.48,0.76,0);
+  cube(0.13,0.13,0.08,darkMat,0.62,0.83,0.2);
+  cube(0.13,0.13,0.08,darkMat,0.62,0.83,-0.2);
+  for (const px of [-0.3,0.3]) for (const pz of [-0.15,0.15]) cube(0.14,0.42,0.14,darkMat,px,0.25,pz);
+  group.position.set(x, terrainHeight(Math.floor(x),Math.floor(z))+1, z);
+  scene.add(group);
+  creatures.push({kind, group, x, z, direction:Math.random()*Math.PI*2, wander:1+Math.random()*4, hp:kind==="zombie"?8:4, speed:kind==="zombie"?1.4:0.55, lastAttack:0});
+}
+function spawnCreatures() {
+  for (const [x,z] of [[-5,-3],[5,4],[12,-5],[-13,4],[2,-12]]) makeCreature(Math.random() < 0.5 ? "cow" : "pig",x,z);
+  makeCreature("zombie", -10, 0);
+}
+function updateCreatures(dt) {
+  for (let i=creatures.length-1;i>=0;i--) {
+    const c=creatures[i];
+    const dx=player.x-c.x,dz=player.z-c.z,dist=Math.hypot(dx,dz);
+    if(c.kind==="zombie" && dist<12 && dist>0.8) { c.x += dx/dist*c.speed*dt; c.z += dz/dist*c.speed*dt; }
+    else { c.wander-=dt; if(c.wander<=0){c.direction=Math.random()*Math.PI*2;c.wander=2+Math.random()*5;} c.x+=Math.cos(c.direction)*c.speed*dt;c.z+=Math.sin(c.direction)*c.speed*dt; }
+    c.x=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.x)); c.z=Math.max(-WORLD_HALF+1,Math.min(WORLD_HALF-1,c.z));
+    c.group.position.set(c.x,terrainHeight(Math.floor(c.x),Math.floor(c.z))+1,c.z);
+    c.group.rotation.y=Math.atan2(dx,dz);
+    if(c.kind==="zombie" && dist<1.25 && performance.now()/1000-c.lastAttack>1.4){c.lastAttack=performance.now()/1000;damagePlayer(2);}
+  }
+}
+function hitCreature() {
+  const origin=camera.position.clone(), direction=new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  let nearest=null, best=3.2;
+  for(const c of creatures) {
+    const center=new THREE.Vector3(c.x, c.group.position.y+0.7, c.z);
+    const along=center.clone().sub(origin).dot(direction);
+    if(along<0||along>best) continue;
+    const closest=origin.clone().addScaledVector(direction,along);
+    if(closest.distanceTo(center)<0.9){nearest=c;best=along;}
+  }
+  if(!nearest)return false;
+  nearest.hp-=4;
+  if(nearest.hp<=0){scene.remove(nearest.group);creatures.splice(creatures.indexOf(nearest),1);if(nearest.kind!=="zombie"){const s=hotbarTypes.indexOf(BLOCKS.WOOD);if(s>=0)inventory[s]=Math.min(MAX_STACK_SIZE,inventory[s]+1);renderInventory();}}
+  return true;
+}
+function updateDayNight(dt) {
+  const cycle=(performance.now()/1000/180)*Math.PI*2;
+  const daylight=Math.max(0.12,(Math.sin(cycle-Math.PI/2)+1)/2);
+  ambientLight.intensity=0.45+daylight*1.2;
+  sun.intensity=0.12+daylight*1.25;
+  scene.background.setRGB(0.08+daylight*0.46,0.12+daylight*0.58,0.19+daylight*0.72);
+  scene.fog.color.copy(scene.background);
+}
 function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastTime) / 1000, 0.04);
   lastTime = now;
   if (locked) updatePlayer(dt);
+  updateCreatures(dt);
+  updateDayNight(dt);
   renderer.render(scene, camera);
 }
 window.addEventListener("resize", () => {
@@ -506,8 +667,12 @@ window.addEventListener("resize", () => {
 });
 
 generateWorld();
+loadSavedWorld();
 rebuildTerrain();
-findSpawn();
+if (!Number.isFinite(player.y) || player.y < 0) findSpawn();
 updateCamera();
-statusText.textContent = "World ready · 40 × 40 blocks";
+spawnCreatures();
+setupSurvivalUI();
+renderInventory();
+statusText.textContent = "World ready · survival prototype · saved locally in this browser";
 requestAnimationFrame(animate);
