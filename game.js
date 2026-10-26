@@ -50,6 +50,8 @@ const PLAYER_RADIUS = 0.30;
 const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5 };
 const blockNames = ["Grass", "Dirt", "Stone", "Wood"];
 const hotbarTypes = [BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD];
+const inventory = [0, 0, 0, 0];
+const MAX_STACK_SIZE = 64;
 const world = new Map();
 const terrainMeshes = [];
 let selectedSlot = 0;
@@ -352,11 +354,25 @@ function updateCamera() {
   camera.position.set(player.x, player.y + 1.62, player.z);
   camera.rotation.set(pitch, yaw, 0, "YXZ");
 }
+function renderInventory() {
+  document.querySelectorAll(".slot").forEach((el, i) => {
+    el.classList.toggle("selected", i === selectedSlot);
+    let count = el.querySelector(".stack-count");
+    if (!count) {
+      count = document.createElement("span");
+      count.className = "stack-count";
+      el.appendChild(count);
+    }
+    count.textContent = inventory[i] > 0 ? String(inventory[i]) : "";
+    count.setAttribute("aria-label", inventory[i] + " items");
+  });
+}
 function selectSlot(index) {
   selectedSlot = (index + hotbarTypes.length) % hotbarTypes.length;
-  document.querySelectorAll(".slot").forEach((el, i) => el.classList.toggle("selected", i === selectedSlot));
+  renderInventory();
 }
 document.querySelectorAll(".slot").forEach((el, i) => el.addEventListener("click", () => selectSlot(i)));
+renderInventory();
 
 function requestLock() { renderer.domElement.requestPointerLock?.(); }
 playButton.addEventListener("click", () => {
@@ -409,7 +425,13 @@ function targetedBlock() {
 function handleMine() {
   const target = targetedBlock();
   if (!target) return;
+  const type = getBlock(target.x, target.y, target.z);
+  const slot = hotbarTypes.indexOf(type);
+  // Survival mining drops one matching block into the hotbar stack.
+  if (slot !== -1 && inventory[slot] >= MAX_STACK_SIZE) return;
   setBlock(target.x, target.y, target.z, BLOCKS.AIR);
+  if (slot !== -1) inventory[slot]++;
+  renderInventory();
   rebuildTerrain();
 }
 function handlePlace() {
@@ -418,11 +440,14 @@ function handlePlace() {
   const nx = Math.round(target.normal.x), ny = Math.round(target.normal.y), nz = Math.round(target.normal.z);
   const x = target.x + nx, y = target.y + ny, z = target.z + nz;
   if (getBlock(x, y, z) !== BLOCKS.AIR) return;
+  if (inventory[selectedSlot] <= 0) return;
   const minX = Math.floor(player.x - PLAYER_RADIUS), maxX = Math.floor(player.x + PLAYER_RADIUS);
   const minY = Math.floor(player.y), maxY = Math.floor(player.y + PLAYER_HEIGHT);
   const minZ = Math.floor(player.z - PLAYER_RADIUS), maxZ = Math.floor(player.z + PLAYER_RADIUS);
   if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ) return;
   setBlock(x, y, z, hotbarTypes[selectedSlot]);
+  inventory[selectedSlot]--;
+  renderInventory();
   rebuildTerrain();
 }
 document.addEventListener("mousedown", event => {
